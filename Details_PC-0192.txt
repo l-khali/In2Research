@@ -1,0 +1,2 @@
+Project ID	birth_deid_date	death_deid_date	sex	icu_visit	icu_start_deid_dttm	icu_end_deid_dttm	failed_extubation_flag	failed_extubation_deid_date	intubation_flag	extubation_flag	extubation_deid_date	extubation_score	re_intubation_deid_date	icu_ward
+PC0192	22-06-2004		Male	1	22-12-2016 11:53	18-02-2017 17:13	1	10-01-2017 18:00	1	1	28-12-2016 18:00	5	11-01-2017 14:00	FLAMI
