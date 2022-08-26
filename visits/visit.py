@@ -6,7 +6,7 @@ import glob
 import ntpath
 
 class Visit:
-    def __init__(self, directory, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details = None):
+    def __init__(self, directory, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details):
         self.directory = directory
         self.project_id = ntpath.basename(directory)
         self.cohort = None
@@ -23,7 +23,7 @@ class Visit:
         if self.project_id in list(cohort_3_details["Project ID"]):
             self.cohort = 3
             self.details = cohort_3_details[cohort_3_details["Project ID"] == self.project_id]
-        if cohort_4_details and (self.project_id in list(cohort_4_details["Project ID"])):
+        if self.project_id in list(cohort_4_details["Project ID"]):
             self.cohort = 4
             self.details = cohort_4_details[cohort_4_details["Project ID"] == self.project_id]
 
