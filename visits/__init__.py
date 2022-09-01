@@ -1,1 +1,1 @@
-from .visit import Visit
+from .visit import Visit, Cohort
