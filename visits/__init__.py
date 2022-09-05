@@ -1,1 +1,1 @@
-from .visit import Visit, Cohort
+from .visit import Visit, Cohort, MissingDataError
