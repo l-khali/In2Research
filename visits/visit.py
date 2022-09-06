@@ -17,7 +17,7 @@ def remove_outliers(df, n=3):
     df_no_outliers = df.copy()
 
     for idx, val in enumerate(df_no_outliers['num_value']):
-        if not (mu - n*sigma < val < mu + 3*sigma):
+        if not (mu - n*sigma < val < mu + n*sigma):
             df_no_outliers['num_value'].iloc[idx] = mu
 
     return df_no_outliers
@@ -25,7 +25,7 @@ def remove_outliers(df, n=3):
 def residuals(df, sigma=100):
     df_smoothed = df.copy()
     df_residuals = df.copy()
-    df_smoothed['num_value'] = ndimage.gaussian_filter1d(df['numvalue'], sigma=sigma)
+    df_smoothed['num_value'] = ndimage.gaussian_filter1d(df['num_value'], sigma=sigma)
     df_residuals['num_value'] = df['num_value'] - df_smoothed['num_value']
     return remove_outliers(df_residuals)
 
@@ -64,7 +64,7 @@ def rolling_mean(df, window=60):
 
 def rolling_variance(df, window=60):
 
-    df = reisduals(df)
+    df = residuals(df)
 
     df['num_value'] = df['num_value'].fillna(df['num_value'].mean())
 
@@ -99,7 +99,7 @@ def rolling_variance(df, window=60):
 
 def rolling_autocorrelation(df, window=60):
 
-    df = reisduals(df)
+    df = residuals(df)
 
     df['num_value'] = df['num_value'].fillna(df['num_value'].mean())
 
@@ -131,6 +131,30 @@ def rolling_autocorrelation(df, window=60):
     ac_df['autocorrelation'] = pd.to_numeric(ac_df['autocorrelation'])
 
     return mk.hamed_rao_modification_test(ac_df['autocorrelation'])
+
+def holm_bonferroni(p_vals, trends, alpha = 0.05):
+    results = np.array([[float(p), t] for p, t in zip(p_vals, trends)])
+    n = len(p_vals)
+    results = results[results[:, 0].argsort()]
+
+    p_vals_sorted = results[:,0]
+    trends_sorted = results[:,1]
+    alphas = [alpha/(n-rank+1) for rank in range(1,n+1)]
+
+    failed = []
+
+    for i, p, trend, alpha in zip(range(1, n+1), p_vals_sorted, trends_sorted, alphas):
+        if p < alpha and trend == 'increasing':
+            # print(f"Test {i} passed")
+            pass
+        else:
+            failed.append((i, p, trend))
+            print(f"Test {i} of {n} failed: ({p},{trend})")
+    
+    if failed:
+        return failed
+    else:
+        return "All tests passed"
 
 
 class Visit:
@@ -168,7 +192,7 @@ class Visit:
                 self.cohort = 3
                 temp = cohort_3_details[cohort_3_details["Project ID"] == self.project_id]
                 self.details = temp[temp["icu_visit"] == self.visit_no]                
-                self.start_time = pd.to_datetime(self.details["failed_extubation_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
+                self.start_time = pd.to_datetime(self.details["extubation_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
         for id, v in zip(list(cohort_4_details["Project ID"]), list(cohort_4_details["icu_visit"])):
             if id == self.project_id and v == self.visit_no:
                 self.cohort = 4
@@ -222,6 +246,8 @@ class Visit:
             # self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
             start_index = hr_temp_df.record_date_time.searchsorted(self.start_time)
             end_index = hr_temp_df.record_date_time.searchsorted(self.end_time)
+
+            # IF DURATION OF THE DATA INSIDE EXTUBATED TIME IS LESS THAN 120 MIN THEN RAISE ERROR
 
             # if (self.end_time - hr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
             #     raise MissingDataError("Time series data is not available close enough to the critical point")
@@ -414,29 +440,55 @@ class Cohort:
 
         return (increasing, no_trend, decreasing, errors)
 
-    def var_trend_count(self, hr=False, rr=False, abf=False):
+    def var_results(self, hr=False, rr=False, abf=False):
         # increasing, decreasing, no_trend, errors = 0, 0, 0, 0
+        errors = 0
         result_df = pd.DataFrame(columns=['trend', "p-value", "tau"])
 
         for visit in self.visits:
             try:
                 if hr:
                     mk = rolling_variance(visit.hr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
 
                 if rr:
                     mk = rolling_variance(visit.rr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
                 
                 if abf:
                     mk = rolling_variance(visit.abf())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
+            except Exception as e:
+                errors += 1
+                logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
+                # print((increasing, no_trend, decreasing, errors))
+
+        return (result_df, f"Missing data/errors: {errors}")
+    
+    def ac_results(self, hr=False, rr=False, abf=False):
+        # increasing, decreasing, no_trend, errors = 0, 0, 0, 0
+        errors = 0
+        result_df = pd.DataFrame(columns=['trend', "p-value", "tau"])
+
+        for visit in self.visits:
+            try:
+                if hr:
+                    mk = rolling_autocorrelation(visit.hr())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+
+                if rr:
+                    mk = rolling_autocorrelation(visit.rr())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                
+                if abf:
+                    mk = rolling_autocorrelation(visit.abf())
                     result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
             except Exception as e:
                 errors += 1
                 logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
-                print((increasing, no_trend, decreasing, errors))
+                # print((increasing, no_trend, decreasing, errors))
 
-        return result_df
+        return (result_df, f"Missing data/errors: {errors}")
 
 
 class MissingDataError(Exception):
