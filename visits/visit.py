@@ -62,6 +62,76 @@ def rolling_mean(df, window=60):
 
     return mk.hamed_rao_modification_test(mean_df['mean'])
 
+def rolling_variance(df, window=60):
+
+    df = reisduals(df)
+
+    df['num_value'] = df['num_value'].fillna(df['num_value'].mean())
+
+    k=0
+    var_df = pd.DataFrame(columns=['start_time','end_time','variance'])
+
+    while (df['record_date_time'].iloc[0] + timedelta(minutes=window+k)) < (df['record_date_time'].iloc[-1]):
+        index_1 = df.record_date_time.searchsorted(df['record_date_time'].iloc[0] + timedelta(minutes=k))
+        index_2 = df.record_date_time.searchsorted(df['record_date_time'].iloc[0] + timedelta(minutes=window+k))
+
+        while pd.isnull(df['num_value'][index_1]):
+            index_1 += 1
+        
+        while pd.isnull(df['num_value'][index_2]):
+            index_2 -= 1
+
+        var = df['num_value'][index_1:index_2].var()
+
+        var_df = var_df.append({'start_time': df['record_date_time'].iloc[index_1], 'end_time':df['record_date_time'].iloc[index_2], 'variance':var}, ignore_index=True)
+        k += 1
+    
+    # mean_df['mean'] = mean_df['mean'].fillna(mean_df['mean'].mean())
+    var_df['variance'].replace({pd.NaT: var_df['variance'].mean()}, inplace = True)
+    
+    for i, row in enumerate(var_df['variance']):
+        if pd.isnull(row):
+            df = df.drop(i)
+    
+    var_df['variance'] = pd.to_numeric(var_df['variance'])
+
+    return mk.hamed_rao_modification_test(var_df['variance'])
+
+def rolling_autocorrelation(df, window=60):
+
+    df = reisduals(df)
+
+    df['num_value'] = df['num_value'].fillna(df['num_value'].mean())
+
+    k=0
+    ac_df = pd.DataFrame(columns=['start_time','end_time','autocorrelation'])
+
+    while (df['record_date_time'].iloc[0] + timedelta(minutes=window+k)) < (df['record_date_time'].iloc[-1]):
+        index_1 = df.record_date_time.searchsorted(df['record_date_time'].iloc[0] + timedelta(minutes=k))
+        index_2 = df.record_date_time.searchsorted(df['record_date_time'].iloc[0] + timedelta(minutes=window+k))
+
+        while pd.isnull(df['num_value'][index_1]):
+            index_1 += 1
+        
+        while pd.isnull(df['num_value'][index_2]):
+            index_2 -= 1
+
+        ac = df['num_value'][index_1:index_2].autocorr()
+
+        ac_df = ac_df.append({'start_time': df['record_date_time'].iloc[index_1], 'end_time':df['record_date_time'].iloc[index_2], 'autocorrelation':ac}, ignore_index=True)
+        k += 1
+    
+    # mean_df['mean'] = mean_df['mean'].fillna(mean_df['mean'].mean())
+    ac_df['autocorrelation'].replace({pd.NaT: ac_df['autocorrelation'].mean()}, inplace = True)
+    
+    for i, row in enumerate(ac_df['autocorrelation']):
+        if pd.isnull(row):
+            df = df.drop(i)
+    
+    ac_df['autocorrelation'] = pd.to_numeric(ac_df['autocorrelation'])
+
+    return mk.hamed_rao_modification_test(ac_df['autocorrelation'])
+
 
 class Visit:
     def __init__(self, directory, visit_number, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details):
@@ -340,8 +410,33 @@ class Cohort:
             except Exception as e:
                 errors += 1
                 logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
+                print((increasing, no_trend, decreasing, errors))
 
         return (increasing, no_trend, decreasing, errors)
+
+    def var_trend_count(self, hr=False, rr=False, abf=False):
+        # increasing, decreasing, no_trend, errors = 0, 0, 0, 0
+        result_df = pd.DataFrame(columns=['trend', "p-value", "tau"])
+
+        for visit in self.visits:
+            try:
+                if hr:
+                    mk = rolling_variance(visit.hr())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+
+                if rr:
+                    mk = rolling_variance(visit.rr())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                
+                if abf:
+                    mk = rolling_variance(visit.abf())
+                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+            except Exception as e:
+                errors += 1
+                logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
+                print((increasing, no_trend, decreasing, errors))
+
+        return result_df
 
 
 class MissingDataError(Exception):
