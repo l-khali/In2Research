@@ -92,7 +92,7 @@ class Visit:
                 self.cohort = 2
                 temp = cohort_2_details[cohort_2_details["Project ID"] == self.project_id]
                 self.details = temp[temp["icu_visit"] == self.visit_no]                
-                self.start_time = pd.to_datetime(self.details["failed_extubation_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
+                self.start_time = pd.to_datetime(self.details["extubation_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
         for id, v in zip(list(cohort_3_details["Project ID"]), list(cohort_3_details["icu_visit"])):
             if id == self.project_id and v == self.visit_no:
                 self.cohort = 3
@@ -127,6 +127,8 @@ class Visit:
             self.end_time = pd.to_datetime(self.details["re_intubation_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
         if self.cohort == 3:
             self.end_time = pd.to_datetime(self.details["death_deid_date"].iloc[0], format='%Y-%m-%d %H:%M:%S')
+        if self.cohort == 2:
+            self.end_time = pd.to_datetime(self.details["pseudo_reintubation"].iloc[0], format='%Y-%m-%d %H:%M:%S')
         
         # else:
         #     raise NotImplementedError
@@ -143,16 +145,16 @@ class Visit:
         return self.details["icu_ward"]
 
     def hr(self):
-        if self.cohort == 1 or self.cohort == 4 or self.cohort == 3:
+        if self.cohort:
             hr = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_HR") in file]
             hr_temp_df = pd.read_csv(hr[0], sep=",")
             hr_temp_df['record_date_time'] = pd.to_datetime(hr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
+            # self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
             start_index = hr_temp_df.record_date_time.searchsorted(self.start_time)
             end_index = hr_temp_df.record_date_time.searchsorted(self.end_time)
 
-            if (self.end_time - hr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
-                raise MissingDataError("Time series data is not available close enough to the critical point")
+            # if (self.end_time - hr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
+            #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
             hr_df = hr_temp_df.iloc[start_index+1:end_index-1, :]
             hr_df.index = range(len(hr_df))
@@ -161,15 +163,15 @@ class Visit:
             else:
                 print("There is no heart rate data available during the extubated period.")
                 return None
-        if self.cohort == 2:
-            hr = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_HR") in file]
-            hr_temp_df = pd.read_csv(hr[0], sep=",")
-            hr_temp_df['record_date_time'] = pd.to_datetime(hr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            if not hr_temp_df.empty:
-                self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
-            else:
-                print("There is no blood pressure data available during the extubated period.")
-                return None
+        # if self.cohort == 2:
+        #     hr = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_HR") in file]
+        #     hr_temp_df = pd.read_csv(hr[0], sep=",")
+        #     hr_temp_df['record_date_time'] = pd.to_datetime(hr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
+        #     if not hr_temp_df.empty:
+        #         self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
+        #     else:
+        #         print("There is no blood pressure data available during the extubated period.")
+        #         return None
 
     def hr_endpoint(self):
         hr = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_HR") in file]
@@ -177,24 +179,24 @@ class Visit:
             hr_temp_df = pd.read_csv(hr[0], sep=",")
             hr_temp_df['record_date_time'] = pd.to_datetime(hr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
             if not hr_temp_df.empty:
-                self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
+                return hr_temp_df['record_date_time'].iloc[-1]
             else:
-                print("There is no blood pressure data available during the extubated period.")
+                print("There is no heart rate data available during the extubated period.")
                 return None
         else:
             return None
 
     def rr(self):
-        if self.cohort == 1 or self.cohort == 4 or self.cohort == 3:
+        if self.cohort:
             rr = [file for file in glob.glob(self.directory + "/*") if f"_{self.visit_no}_RR" in file]
             rr_temp_df = pd.read_csv(rr[0], sep=',')
             rr_temp_df['record_date_time'] = pd.to_datetime(rr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
+            # self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
             start_index = rr_temp_df.record_date_time.searchsorted(self.start_time)
             end_index = rr_temp_df.record_date_time.searchsorted(self.end_time)
 
-            if (self.end_time - rr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
-                raise MissingDataError("Time series data is not available close enough to the critical point")
+            # if (self.end_time - rr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
+            #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
             rr_df = rr_temp_df.iloc[start_index+1:end_index-1, :]
             for idx1 in rr_df.index:
@@ -211,15 +213,15 @@ class Visit:
             else:
                 print("There is no respiration rate data available during the extubated period.")
                 return None
-        if self.cohort == 2:
-            rr = [file for file in glob.glob(self.directory + "/*") if f"_{self.visit_no}_RR" in file]
-            rr_temp_df = pd.read_csv(rr[0], sep=',')
-            rr_temp_df['record_date_time'] = pd.to_datetime(rr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            if not rr_temp_df.empty:
-                self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
-            else:
-                print("There is no blood pressure data available during the extubated period.")
-                return None
+        # if self.cohort == 2:
+        #     rr = [file for file in glob.glob(self.directory + "/*") if f"_{self.visit_no}_RR" in file]
+        #     rr_temp_df = pd.read_csv(rr[0], sep=',')
+        #     rr_temp_df['record_date_time'] = pd.to_datetime(rr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
+        #     if not rr_temp_df.empty:
+        #         self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
+        #     else:
+        #         print("There is no blood pressure data available during the extubated period.")
+        #         return None
             # raise NotImplementedError("The psuedo extubation times have not been determined yet.")
 
     def rr_endpoint(self):
@@ -228,7 +230,7 @@ class Visit:
             rr_temp_df = pd.read_csv(rr[0], sep=',')
             rr_temp_df['record_date_time'] = pd.to_datetime(rr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
             if not rr_temp_df.empty:
-                self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
+                return rr_temp_df['record_date_time'].iloc[-1]
             else:
                 print("There is no blood pressure data available during the extubated period.")
                 return None
@@ -236,16 +238,16 @@ class Visit:
             return None
 
     def abf(self):
-        if self.cohort == 1 or self.cohort == 4 or self.cohort == 3:
+        if self.cohort:
             abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
             abf_temp_df = pd.read_csv(abf[0], sep=",")
             abf_temp_df['record_date_time'] = pd.to_datetime(abf_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
+            # self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
             start_index = abf_temp_df.record_date_time.searchsorted(self.start_time)
             end_index = abf_temp_df.record_date_time.searchsorted(self.end_time)
 
-            if (self.end_time - abf_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
-                raise MissingDataError("Time series data is not available close enough to the critical point")
+            # if (self.end_time - abf_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
+            #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
             abf_df = abf_temp_df.iloc[start_index+1:end_index-1, :]
 
@@ -263,15 +265,15 @@ class Visit:
             else:
                 print("There is no blood pressure data available during the extubated period.")
                 return None
-        if self.cohort == 2:
-            abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
-            abf_temp_df = pd.read_csv(abf[0], sep=",")
-            abf_temp_df['record_date_time'] = pd.to_datetime(abf_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-            if not abf_temp_df.empty:
-                self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
-            else:
-                print("There is no blood pressure data available during the extubated period.")
-                return None
+        # if self.cohort == 2:
+        #     abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
+        #     abf_temp_df = pd.read_csv(abf[0], sep=",")
+        #     abf_temp_df['record_date_time'] = pd.to_datetime(abf_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
+        #     if not abf_temp_df.empty:
+        #         self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
+        #     else:
+        #         print("There is no blood pressure data available during the extubated period.")
+        #         return None
             # raise NotImplementedError
 
     def abf_endpoint(self):
@@ -291,10 +293,10 @@ class Visit:
         return [rolling_mean(self.hr()).trend, rolling_mean(self.rr()).trend, rolling_mean(self.abf()).trend]
     
     def final_datapoint(self):
-        """Find earliest final data point for a given instance."""
+        """Find latest final data point for a given instance."""
 
         # try:
-        return min(x for x in [self.hr_endpoint(), self.rr_endpoint(), self.abf_endpoint()] if x)
+        return max(x for x in [self.hr_endpoint(), self.rr_endpoint(), self.abf_endpoint()] if x)
         # except Exception as e:
         #         logger.error(str(e))
     
