@@ -132,23 +132,25 @@ def rolling_autocorrelation(df, window=60):
 
     return mk.hamed_rao_modification_test(ac_df['autocorrelation'])
 
-def holm_bonferroni(p_vals, trends, alpha = 0.05):
-    results = np.array([[float(p), t] for p, t in zip(p_vals, trends)])
+def holm_bonferroni(project_ids, visit_no, p_vals, trends, alpha = 0.05):
+    results = np.array([[id, v, "{:f}".format(p), t] for id, v, p, t in zip(project_ids, visit_no, p_vals, trends)])
     n = len(p_vals)
-    results = results[results[:, 0].argsort()]
+    results = results[results[:, 2].argsort()]
 
-    p_vals_sorted = results[:,0]
-    trends_sorted = results[:,1]
-    alphas = [alpha/(n-rank+1) for rank in range(1,n+1)]
+    id_sorted = results[:,0]
+    visits_sorted = results[:,1]
+    p_vals_sorted = results[:,2]
+    trends_sorted = results[:,3]
+    alphas = [float(alpha/(n-rank+1)) for rank in range(1,n+1)]
 
     failed = []
 
-    for i, p, trend, alpha in zip(range(1, n+1), p_vals_sorted, trends_sorted, alphas):
-        if p < alpha and trend == 'increasing':
+    for i, id, v, p, trend, alpha in zip(range(1, n+1), id_sorted, visits_sorted, p_vals_sorted, trends_sorted, alphas):
+        if float(p) < alpha:
             # print(f"Test {i} passed")
             pass
         else:
-            failed.append((i, p, trend))
+            failed.append((i, id, v, p, trend))
             print(f"Test {i} of {n} failed: ({p},{trend})")
     
     if failed:
@@ -443,21 +445,21 @@ class Cohort:
     def var_results(self, hr=False, rr=False, abf=False):
         # increasing, decreasing, no_trend, errors = 0, 0, 0, 0
         errors = 0
-        result_df = pd.DataFrame(columns=['trend', "p-value", "tau"])
+        result_df = pd.DataFrame(columns=['Project ID', 'visit_no', 'trend', "p-value", "tau"])
 
         for visit in self.visits:
             try:
                 if hr:
                     mk = rolling_variance(visit.hr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
 
                 if rr:
                     mk = rolling_variance(visit.rr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
                 
                 if abf:
                     mk = rolling_variance(visit.abf())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': float(mk[2]), 'tau': float(mk[4])}, ignore_index=True)
             except Exception as e:
                 errors += 1
                 logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
@@ -474,15 +476,15 @@ class Cohort:
             try:
                 if hr:
                     mk = rolling_autocorrelation(visit.hr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
 
                 if rr:
                     mk = rolling_autocorrelation(visit.rr())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
                 
                 if abf:
                     mk = rolling_autocorrelation(visit.abf())
-                    result_df = result_df.append({'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
+                    result_df = result_df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'trend': mk[0], 'p-value': mk[2], 'tau': mk[4]}, ignore_index=True)
             except Exception as e:
                 errors += 1
                 logger.error(visit.project_id + ' visit ' + str(visit.visit_no) + ' failed: '+ str(e))
