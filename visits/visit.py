@@ -298,7 +298,7 @@ class Visit:
 
             rr_df = rr_temp_df.iloc[start_index+1:end_index-1, :]
             for idx1 in rr_df.index:
-                for idx2 in range(min(rr_df.index[-1], idx1+1), min(rr_df.index[-1], idx1+30), 1):
+                for idx2 in range(min(rr_df.index[-1], idx1+1), min(rr_df.index[-1], idx1+3), 1):
                     if rr_df['record_date_time'].loc[idx1] == rr_df['record_date_time'].loc[idx2]:
                         rr_df['num_value'].loc[idx2] = 0.5*(rr_df['num_value'].loc[idx1]+rr_df['num_value'].loc[idx2])
                         rr_df['monitor'].loc[idx2] = "combination"
