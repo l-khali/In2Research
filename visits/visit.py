@@ -146,7 +146,7 @@ def holm_bonferroni(project_ids, visit_no, p_vals, trends, alpha = 0.05):
     failed = []
 
     for i, id, v, p, trend, alpha in zip(range(1, n+1), id_sorted, visits_sorted, p_vals_sorted, trends_sorted, alphas):
-        if float(p) < alpha:
+        if float(p) < alpha and trend == "increasing":
             # print(f"Test {i} passed")
             pass
         else:
@@ -158,6 +158,32 @@ def holm_bonferroni(project_ids, visit_no, p_vals, trends, alpha = 0.05):
     else:
         return "All tests passed"
 
+def icu_split(results_df, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details):
+    # final = pd.DataFrame(columns=["measure","biological measure","","icu_ward", "total", "failed", "proportion"])
+    # final["measure"] = [measure, measure, measure]
+    # final["biological measure"] = [bio_measure, bio_measure, bio_measure]
+    # final["icu_ward"] = ["PICU", "FLAMI", "NICU"]
+
+    picu_results_df = pd.DataFrame(columns=["trend", "p-value", "tau", "Project ID", "visit_no"])
+    flami_results_df = pd.DataFrame(columns=["trend", "p-value", "tau", "Project ID", "visit_no"])
+    nicu_results_df = pd.DataFrame(columns=["trend", "p-value", "tau", "Project ID", "visit_no"])
+
+    for idx, project_id, visit_no in zip(results_df.index, results_df["Project ID"], results_df["visit_no"]):
+        v = Visit(f"../In2Research_data/data/{project_id}", visit_no, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details)
+        ward = v.icu_type()
+        if ward.iloc[0] == "PICU":
+            picu_results_df = picu_results_df.append(results_df.loc[idx])
+        if ward.iloc[0] == "FLAMI":
+            flami_results_df = flami_results_df.append(results_df.loc[idx])
+        if ward.iloc[0] == "NICU":
+            nicu_results_df = nicu_results_df.append(results_df.loc[idx])
+    
+    results_list = [picu_results_df, flami_results_df, nicu_results_df]
+    failed_list = [holm_bonferroni(df["Project ID"], df["visit_no"], df["p-value"], df["trend"], alpha = 0.05) for df in results_list]
+    pass_proportions = [(1 - (len(x)/len(y))) for x, y in zip(failed_list, results_list)]
+    
+    return pass_proportions, results_list, failed_list
+
 
 class Visit:
     def __init__(self, directory, visit_number, cohort_1_details, cohort_2_details, cohort_3_details, cohort_4_details):
@@ -167,9 +193,9 @@ class Visit:
         self.start_time = None
         self.end_time = None
         self.details = None
-        self.age = None
-        self.sex = None
-        self.icu_type = None
+        # self.age = None
+        # self.sex = None
+        # self.icu_type = None
         self.visit_no = visit_number
         # self.final_datapoint = None
         # self.hr_endpoint = None
@@ -251,6 +277,11 @@ class Visit:
 
             # IF DURATION OF THE DATA INSIDE EXTUBATED TIME IS LESS THAN 120 MIN THEN RAISE ERROR
 
+            if (self.end_time - self.start_time).seconds/60 < 120:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
+
+            if (self.end_time - self.start_time).seconds/60 > 900:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
             # if (self.end_time - hr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
             #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
@@ -494,6 +525,12 @@ class Cohort:
 
 
 class MissingDataError(Exception):
+    """Exception raised if the time series does not contain enough data for effective analysis."""
+
+    pass
+
+
+class TooShortError(Exception):
     """Exception raised if the time series does not contain enough data for effective analysis."""
 
     pass
