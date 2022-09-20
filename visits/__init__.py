@@ -1,1 +1,1 @@
-from .visit import Visit, Cohort, MissingDataError, holm_bonferroni, icu_split  # noqa
+from .visit import Visit, Cohort, MissingDataError, holm_bonferroni, icu_split, rolling_variance, rolling_autocorrelation, age_histogram  # noqa

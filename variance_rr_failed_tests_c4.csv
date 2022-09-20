@@ -1,0 +1,12 @@
+,Index,Project ID,visit_no,p-value,trend
+0,1,DA1324,1,0.002658,decreasing
+1,2,WR2446,1,0.034747,decreasing
+2,3,FM2255,1,0.042696,increasing
+3,4,XZ2214,1,0.176641,no trend
+4,5,JV3994,1,0.218320,no trend
+5,6,GV3647,1,0.276073,no trend
+6,7,TM2287,2,0.286863,no trend
+7,8,AH3026,4,0.423272,no trend
+8,9,BY1872,1,0.486781,no trend
+9,10,QF1860,2,0.738177,no trend
+10,11,WA0589,1,0.849391,no trend

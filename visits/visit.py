@@ -7,6 +7,8 @@ import ntpath
 import scipy.ndimage as ndimage
 import pymannkendall as mk
 from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+import seaborn as sns
 import logging
 logger = logging.getLogger('ftpuploader')
 
@@ -62,7 +64,7 @@ def rolling_mean(df, window=60):
 
     return mk.hamed_rao_modification_test(mean_df['mean'])
 
-def rolling_variance(df, window=60):
+def rolling_variance(df, window=60, for_averages=False):
 
     df = residuals(df)
 
@@ -95,9 +97,12 @@ def rolling_variance(df, window=60):
     
     var_df['variance'] = pd.to_numeric(var_df['variance'])
 
-    return mk.hamed_rao_modification_test(var_df['variance'])
+    if for_averages:
+        return var_df
+    else:
+        mk.hamed_rao_modification_test(var_df['variance'])
 
-def rolling_autocorrelation(df, window=60):
+def rolling_autocorrelation(df, window=60, for_averages=False):
 
     df = residuals(df)
 
@@ -130,7 +135,10 @@ def rolling_autocorrelation(df, window=60):
     
     ac_df['autocorrelation'] = pd.to_numeric(ac_df['autocorrelation'])
 
-    return mk.hamed_rao_modification_test(ac_df['autocorrelation'])
+    if for_averages:
+        return ac_df
+    else:
+        return mk.hamed_rao_modification_test(ac_df['autocorrelation'])
 
 def holm_bonferroni(project_ids, visit_no, p_vals, trends, alpha = 0.05):
     results = np.array([[id, v, "{:f}".format(p), t] for id, v, p, t in zip(project_ids, visit_no, p_vals, trends)])
@@ -181,8 +189,66 @@ def icu_split(results_df, cohort_1_details, cohort_2_details, cohort_3_details, 
     results_list = [picu_results_df, flami_results_df, nicu_results_df]
     failed_list = [holm_bonferroni(df["Project ID"], df["visit_no"], df["p-value"], df["trend"], alpha = 0.05) for df in results_list]
     pass_proportions = [(1 - (len(x)/len(y))) for x, y in zip(failed_list, results_list)]
+    no_of_significant_tests = [len(x) - len(y) for x, y in zip(results_list, failed_list)]
     
-    return pass_proportions, results_list, failed_list
+    return no_of_significant_tests, pass_proportions, results_list, failed_list
+
+def age_histogram(df):
+    """Takes input of cohort details dataframe with age column and significance flags, outputs age distributions of significant and insignificant instances."""
+    significant_var_hr = df[df["var_hr_flag"]==1]
+    not_significant_var_hr = df[df["var_hr_flag"]==0]
+
+    significant_ac_hr = df[df["ac_hr_flag"]==1]
+    not_significant_ac_hr = df[df["ac_hr_flag"]==0]
+
+    significant_var_rr = df[df["var_rr_flag"]==1]
+    not_significant_var_rr = df[df["var_rr_flag"]==0]
+
+    significant_ac_rr = df[df["ac_rr_flag"]==1]
+    not_significant_ac_rr = df[df["ac_rr_flag"]==0]
+
+    significant_var_abf = df[df["var_abf_flag"]==1]
+    not_significant_var_abf = df[df["var_abf_flag"]==0]
+
+    significant_ac_abf = df[df["ac_abf_flag"]==1]
+    not_significant_ac_abf = df[df["ac_abf_flag"]==0]
+
+    fig, axs = plt.subplots(3, 2, figsize=(20, 20))
+
+    axs[0,0].hist(not_significant_var_hr["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[0,0].hist(significant_var_hr["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    # axs[0,0].legend(loc='upper right')
+    axs[0,0].set(xlabel="age (days)")
+    axs[0,0].set_title("Variance of heart rate")
+
+    axs[0,1].hist(not_significant_ac_hr["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[0,1].hist(significant_ac_hr["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    axs[0,1].legend(loc='upper right')
+    axs[0,1].set(xlabel="age (days)")
+    axs[0,1].set_title("Autocorrelation of heart rate")
+
+    axs[1,0].hist(not_significant_var_rr["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[1,0].hist(significant_var_rr["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    axs[1,0].set(xlabel="age (days)")
+    axs[1,0].set_title("Variance of respiration rate")
+
+    axs[1,1].hist(not_significant_ac_rr["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[1,1].hist(significant_ac_rr["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    axs[1,1].set(xlabel="age (days)")
+    axs[1,1].set_title("Autocorrelation of respiration rate")
+
+    axs[2,0].hist(not_significant_var_abf["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[2,0].hist(significant_var_abf["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    axs[2,0].set(xlabel="age (days)")
+    axs[2,0].set_title("Variance of mean blood pressure")
+
+    axs[2,1].hist(not_significant_ac_abf["age (days)"], bins=50, alpha=0.5, label='Insignificant results')
+    axs[2,1].hist(significant_ac_abf["age (days)"], bins=50,alpha=0.5, label='Significant results')
+    axs[2,1].set(xlabel="age (days)")
+    axs[2,1].set_title("Autocorrelation of mean blood pressure")
+
+    # sns.boxplot(data=[not_significant_var_hr["age (days)"], significant_var_hr["age (days)"]])
+
 
 
 class Visit:
@@ -266,22 +332,30 @@ class Visit:
     def icu_type(self):
         return self.details["icu_ward"]
 
-    def hr(self):
+    def hr(self, for_averages=False, cut_off=0, gap=None):
         if self.cohort:
             hr = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_HR") in file]
             hr_temp_df = pd.read_csv(hr[0], sep=",")
             hr_temp_df['record_date_time'] = pd.to_datetime(hr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
             # self.hr_endpoint = hr_temp_df['record_date_time'].iloc[-1]
             start_index = hr_temp_df.record_date_time.searchsorted(self.start_time)
-            end_index = hr_temp_df.record_date_time.searchsorted(self.end_time)
+            cut_time = timedelta(minutes=cut_off)
+            end_index = hr_temp_df.record_date_time.searchsorted(self.end_time - cut_time)
+
+            if gap:
+                start_index = hr_temp_df.record_date_time.searchsorted(self.start_time - timedelta(minutes=cut_off) - timedelta(minutes=gap))
+
+            if end_index < start_index:
+                raise MissingDataError(f"({self.project_id}, {self.visit_no}, start time: {self.start_time}, end_time: {self.end_time - cut_time}, start index = {start_index}, end index = {end_index}")
 
             # IF DURATION OF THE DATA INSIDE EXTUBATED TIME IS LESS THAN 120 MIN THEN RAISE ERROR
 
+            # if not for_averages:
             if (self.end_time - self.start_time).seconds/60 < 120:
                 raise TooShortError("Extubated period is too short to carry out analysis.")
 
-            if (self.end_time - self.start_time).seconds/60 > 900:
-                raise TooShortError("Extubated period is too short to carry out analysis.")
+            if (self.end_time - self.start_time).seconds/60 > 1000:
+                raise TooLongError("Extubated period is too long to carry out analysis.")
             # if (self.end_time - hr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
             #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
@@ -315,28 +389,47 @@ class Visit:
         else:
             return None
 
-    def rr(self):
+    def rr(self, for_averages=False, cut_off=0, gap=None):
         if self.cohort:
             rr = [file for file in glob.glob(self.directory + "/*") if f"_{self.visit_no}_RR" in file]
             rr_temp_df = pd.read_csv(rr[0], sep=',')
             rr_temp_df['record_date_time'] = pd.to_datetime(rr_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
             # self.rr_endpoint = rr_temp_df['record_date_time'].iloc[-1]
             start_index = rr_temp_df.record_date_time.searchsorted(self.start_time)
-            end_index = rr_temp_df.record_date_time.searchsorted(self.end_time)
+            cut_time = timedelta(minutes=cut_off)
+            end_index = rr_temp_df.record_date_time.searchsorted(self.end_time - cut_time)
+
+            if gap:
+                start_index = rr_temp_df.record_date_time.searchsorted(self.start_time - timedelta(minutes=cut_off) - timedelta(minutes=gap))
+
+            if end_index < start_index:
+                raise ValueError("Time cut off is too large")
+
+            # IF DURATION OF THE DATA INSIDE EXTUBATED TIME IS LESS THAN 120 MIN THEN RAISE ERROR
+
+            # if not for_averages:
+            if (self.end_time - self.start_time).seconds/60 < 120:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
+
+            if (self.end_time - self.start_time).seconds/60 > 1000:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
 
             # if (self.end_time - rr_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
             #     raise MissingDataError("Time series data is not available close enough to the critical point")
 
             rr_df = rr_temp_df.iloc[start_index+1:end_index-1, :]
-            for idx1 in rr_df.index:
-                for idx2 in range(min(rr_df.index[-1], idx1+1), min(rr_df.index[-1], idx1+3), 1):
-                    if rr_df['record_date_time'].loc[idx1] == rr_df['record_date_time'].loc[idx2]:
-                        rr_df['num_value'].loc[idx2] = 0.5*(rr_df['num_value'].loc[idx1]+rr_df['num_value'].loc[idx2])
-                        rr_df['monitor'].loc[idx2] = "combination"
-                        rr_df = rr_df.drop(idx1, axis=0)
-                        break
-                    break
-            rr_df.index = range(len(rr_df))
+            # for idx1 in rr_df.index:
+            #     for idx2 in range(min(rr_df.index[-1], idx1+1), min(rr_df.index[-1], idx1+3), 1):
+            #         if rr_df['record_date_time'].loc[idx1] == rr_df['record_date_time'].loc[idx2]:
+            #             rr_df['num_value'].loc[idx2] = 0.5*(rr_df['num_value'].loc[idx1]+rr_df['num_value'].loc[idx2])
+            #             rr_df['monitor'].loc[idx2] = "combination"
+            #             rr_df = rr_df.drop(idx1, axis=0)
+            #             break
+            #         break
+            # rr_df.index = range(len(rr_df))
+
+            rr_df = rr_df.groupby("record_date_time", as_index=False)['num_value'].mean()
+
             if not rr_df.empty:
                 return rr_df
             else:
@@ -366,14 +459,29 @@ class Visit:
         else:
             return None
 
-    def abf(self):
+    def abf(self, for_averages=False, cut_off=0, gap=None):
         if self.cohort:
             abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
             abf_temp_df = pd.read_csv(abf[0], sep=",")
             abf_temp_df['record_date_time'] = pd.to_datetime(abf_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
             # self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
             start_index = abf_temp_df.record_date_time.searchsorted(self.start_time)
-            end_index = abf_temp_df.record_date_time.searchsorted(self.end_time)
+            cut_time = timedelta(minutes=cut_off)
+            end_index = abf_temp_df.record_date_time.searchsorted(self.end_time - cut_time)
+
+            if gap:
+                start_index = abf_temp_df.record_date_time.searchsorted(self.start_time - timedelta(minutes=cut_off) - timedelta(minutes=gap))
+
+            if end_index < start_index:
+                raise ValueError("Time cut off is too large")
+
+            # IF DURATION OF THE DATA INSIDE EXTUBATED TIME IS LESS THAN 120 MIN THEN RAISE ERROR
+
+            if (self.end_time - self.start_time).seconds/60 < 120:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
+
+            if (self.end_time - self.start_time).seconds/60 > 1000:
+                raise TooShortError("Extubated period is too short to carry out analysis.")
 
             # if (self.end_time - abf_temp_df['record_date_time'].iloc[end_index-1]).seconds/60 > 20:
             #     raise MissingDataError("Time series data is not available close enough to the critical point")
@@ -394,16 +502,6 @@ class Visit:
             else:
                 print("There is no blood pressure data available during the extubated period.")
                 return None
-        # if self.cohort == 2:
-        #     abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
-        #     abf_temp_df = pd.read_csv(abf[0], sep=",")
-        #     abf_temp_df['record_date_time'] = pd.to_datetime(abf_temp_df['record_date_time'], format='%Y-%m-%d %H:%M:%S')
-        #     if not abf_temp_df.empty:
-        #         self.abf_endpoint = abf_temp_df['record_date_time'].iloc[-1]
-        #     else:
-        #         print("There is no blood pressure data available during the extubated period.")
-        #         return None
-            # raise NotImplementedError
 
     def abf_endpoint(self):
         abf = [file for file in glob.glob(self.directory + "/*") if (f"_{self.visit_no}_ABF") in file]
@@ -428,6 +526,53 @@ class Visit:
         return max(x for x in [self.hr_endpoint(), self.rr_endpoint(), self.abf_endpoint()] if x)
         # except Exception as e:
         #         logger.error(str(e))
+    
+    def averages(self, cut_off=20, gap=None, measure='hr'):
+        if measure == 'hr':
+            df = self.hr(for_averages=True, cut_off=cut_off, gap=gap)
+        if measure == 'rr':
+            df = self.rr(for_averages=True, cut_off=cut_off, gap=gap)
+        if measure == 'abf':
+            df = self.abf(for_averages=True, cut_off=cut_off, gap=gap)
+        errors=0
+        if gap:
+            try:
+                var_df = rolling_variance(self.measure(for_averages=True, cut_off=cut_off, gap=gap), for_averages=True)
+                ac_df = rolling_autocorrelation(self.measure(for_averages=True, cut_off=cut_off, gap=gap), for_averages=True)
+
+                # start_index_1 = 0
+                # end_index_1 = var_df.start_time.searchsorted(var_df["start_time"].iloc[0] + timedelta(minutes=window_size))
+
+                # start_index_2 = var_df.start_time.searchsorted(var_df["start_time"].iloc[-1] - timedelta(minutes=window_size))
+                # end_index_2 = -1
+
+                index_1 = var_df.start_time.searchsorted(var_df["start_time"].iloc[-1] - timedelta(minutes=gap))
+                index_2 = -1
+
+                var_1 = var_df["variance"].iloc[index_1]
+                var_2 = var_df["variance"].iloc[index_2]
+                ac_1 = ac_df["autocorrelation"].iloc[index_1]
+                ac_2 = ac_df["autocorrelation"].iloc[index_2]
+
+                return (var_1, var_2, ac_1, ac_2)
+            except Exception as e:
+                    errors += 1
+                    logger.error(str(e))
+        else:
+            try:
+                var_df = rolling_variance(df, for_averages=True)
+                ac_df = rolling_autocorrelation(df, for_averages=True)
+
+                var_1 = var_df["variance"].iloc[0]
+                var_2 = var_df["variance"].iloc[-1]
+                ac_1 = ac_df["autocorrelation"].iloc[0]
+                ac_2 = ac_df["autocorrelation"].iloc[-1]
+
+                return (var_1, var_2, ac_1, ac_2)
+            except Exception as e:
+                    errors += 1
+                    logger.error(str(e))
+        
     
 
 class Cohort:
@@ -479,6 +624,7 @@ class Cohort:
         result_df = pd.DataFrame(columns=['Project ID', 'visit_no', 'trend', "p-value", "tau"])
 
         for visit in self.visits:
+            print(f"Starting {visit.project_id} visit {visit.visit_no}")
             try:
                 if hr:
                     mk = rolling_variance(visit.hr())
@@ -522,6 +668,35 @@ class Cohort:
                 # print((increasing, no_trend, decreasing, errors))
 
         return (result_df, f"Missing data/errors: {errors}")
+    
+    def averages(self, cut_off=20, gap=None, measure='hr'):
+        errors = 0
+
+        df = pd.DataFrame(columns=['Project ID','visit_no','var_hr_1','var_hr_2',"var_diff",'ac_hr_1','ac_hr_2',"ac_diff"])
+        
+        # df["Project ID"] = [visit.project_id for visit in self.visits]
+        # df["visit_no"] = [visit.visit_no for visit in self.visits]
+        # df["var_window_1"] = [visit.averages(cut_off=cut_off, window_size=window_size, gap=gap)[0] for visit in self.visits]
+        # df["var_window_2"] = [visit.averages(cut_off=cut_off, window_size=window_size, gap=gap)[1] for visit in self.visits]
+        # df["ac_window_1"] = [visit.averages(cut_off=cut_off, window_size=window_size, gap=gap)[2] for visit in self.visits]
+        # df["ac_window_2"] = [visit.averages(cut_off=cut_off, window_size=window_size, gap=gap)[3] for visit in self.visits]
+
+        for visit in self.visits:
+            try:
+                means = visit.averages(cut_off=cut_off, gap=gap, measure=measure)
+                df = df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'var_hr_1': means[0],'var_hr_2': means[1], 'var_diff': (means[1]-means[0]), 'ac_hr_1': means[2],'ac_hr_2': means[3], 'ac_diff': (means[3]-means[2])}, ignore_index=True)
+            except Exception as e:
+                errors += 1
+                logger.error(str(e))
+                df = df.append({'Project ID': visit.project_id, 'visit_no': visit.visit_no, 'var_hr_1': None,'var_hr_2': None, 'var_diff': None, 'ac_hr_1': None,'ac_hr_2': None, 'ac_diff': None}, ignore_index=True)
+        
+        # df.insert(4, 'var_diff', None)
+        # df.insert(7, 'ac_diff', None)
+
+        # df["var_diff"] = [df["var_hr_2"].iloc[idx] - df["var_hr_1"].iloc[idx] for idx in range(len(df))]
+        # df["ac_diff"] = [df["ac_hr_2"].iloc[idx] - df["ac_hr_1"].iloc[idx] for idx in range(len(df))]
+
+        return df
 
 
 class MissingDataError(Exception):
@@ -532,5 +707,11 @@ class MissingDataError(Exception):
 
 class TooShortError(Exception):
     """Exception raised if the time series does not contain enough data for effective analysis."""
+
+    pass
+
+
+class TooLongError(Exception):
+    """Exception raised if the time series is too long to carry out computations."""
 
     pass
