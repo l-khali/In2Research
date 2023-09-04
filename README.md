@@ -6,4 +6,4 @@ In a complex biological system, critical slowing down indicates lower resilience
 
 Package: [visits](https://github.com/l-khali/In2Research/tree/main/visits)
 
-Analysis carried out on one instance for pre-registration of research: [heart rate](https://github.com/l-khali/In2Research/blob/main/PC-0192_analysis.ipynb), [respiration rate](https://github.com/l-khali/In2Research/blob/main/PC-0192_RR_analysis.ipynb), [blood pressure](https://github.com/l-khali/In2Research/blob/main/PC-0192_ABF_analysis.ipynb)
+Analysis carried out on one instance for pre-registration of research: [heart rate](https://github.com/l-khali/In2Research/blob/main/PC0192_analysis/PC-0192_analysis.ipynb), [respiration rate](https://github.com/l-khali/In2Research/blob/main/PC0192_analysis/PC-0192_RR_analysis.ipynb), [blood pressure](https://github.com/l-khali/In2Research/blob/main/PC0192_analysis/PC-0192_ABF_analysis.ipynb)
